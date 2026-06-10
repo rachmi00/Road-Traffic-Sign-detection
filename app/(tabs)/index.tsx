@@ -1,98 +1,114 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
+import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera';
 
-export default function HomeScreen() {
+export default function ScannerScreen() {
+  // Manages whether the user has granted camera permission
+  const { hasPermission, requestPermission } = useCameraPermission();
+
+  // Picks the back camera of the phone
+  const device = useCameraDevice('back');
+
+  // Track if we are still loading permission state
+  const [loading, setLoading] = useState(true);
+
+  // When the screen first opens, ask for camera permission if not yet granted
+  useEffect(() => {
+    (async () => {
+      if (!hasPermission) {
+        await requestPermission();
+      }
+      setLoading(false);
+    })();
+  }, [hasPermission, requestPermission]);
+
+  // While we figure out permissions, show a loading screen
+  if (loading) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.message}>Loading camera...</Text>
+      </View>
+    );
+  }
+
+  // If user denied permission, show a message and a button to try again
+  if (!hasPermission) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.message}>Camera permission is required to detect traffic signs.</Text>
+        <TouchableOpacity style={styles.button} onPress={requestPermission}>
+          <Text style={styles.buttonText}>Grant Permission</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // If no back camera is available (unlikely but possible)
+  if (!device) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.message}>No back camera found on this device.</Text>
+      </View>
+    );
+  }
+
+  // All good — show the live camera preview
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-        <ThemedText>This is the first step! yayy</ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
-
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <View style={styles.container}>
+      <Camera
+        style={StyleSheet.absoluteFill}
+        device={device}
+        isActive={true}
+      />
+      {/* A small overlay at the top showing the app is running */}
+      <View style={styles.topOverlay}>
+        <Text style={styles.overlayText}>Scanner Active</Text>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
+  container: {
+    flex: 1,
+    backgroundColor: 'black',
+  },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
+    padding: 24,
+    backgroundColor: '#000',
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  message: {
+    color: 'white',
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 16,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
+  button: {
+    backgroundColor: '#1f3b66',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  buttonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  topOverlay: {
     position: 'absolute',
+    top: 60,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  overlayText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

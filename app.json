@@ -29,6 +29,12 @@
     "plugins": [
       "expo-router",
       [
+        "react-native-vision-camera",
+        {
+          "cameraPermissionText": "Traffic Sign Recognition needs camera access to detect road signs."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",

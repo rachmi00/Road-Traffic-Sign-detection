@@ -1,8 +1,8 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
+import { Ionicons } from '@expo/vector-icons';
 
 import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -20,14 +20,14 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Scanner',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="camera.fill" color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="camera" size={28} color={color} />,
         }}
       />
       <Tabs.Screen
         name="explore"
         options={{
           title: 'Info',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="info.circle.fill" color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="information-circle" size={28} color={color} />,
         }}
       />
     </Tabs>
