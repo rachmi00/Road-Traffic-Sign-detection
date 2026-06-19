@@ -9,7 +9,10 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Traffic Sign Recognition needs camera access to detect road signs."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -20,7 +23,10 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.rachmi00.trafficsignrecognition"
+      "package": "com.rachmi00.trafficsignrecognition",
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
     },
     "web": {
       "output": "static",
@@ -28,12 +34,6 @@
     },
     "plugins": [
       "expo-router",
-      [
-        "react-native-vision-camera",
-        {
-          "cameraPermissionText": "Traffic Sign Recognition needs camera access to detect road signs."
-        }
-      ],
       [
         "expo-splash-screen",
         {

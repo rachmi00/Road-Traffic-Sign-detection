@@ -1,4 +1,4 @@
-import { StyleSheet, View, Text, ScrollView } from 'react-native';
+import { StyleSheet, Text, ScrollView } from 'react-native';
 
 export default function InfoScreen() {
   return (
