@@ -1,15 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import {
   Camera,
   useCameraDevice,
   useCameraPermission,
-  useFrameOutput,
+  useFrameProcessor,
 } from 'react-native-vision-camera';
 import { useTensorflowModel } from 'react-native-fast-tflite';
+import { NitroModules } from 'react-native-nitro-modules';
+import { useResizePlugin } from 'vision-camera-resize-plugin';
 import { scheduleOnRN } from 'react-native-worklets';
 
-// Class names in the EXACT order the model was trained on.
 const CLASS_NAMES = [
   'Speed Limit 30',
   'Speed Limit 50',
@@ -24,9 +25,13 @@ const CLASS_NAMES = [
   'No Parking',
 ] as const;
 
-const CONFIDENCE_THRESHOLD = 0.5;
-const NUM_DETECTIONS = 8400;
-const NUM_CLASSES = 11;
+const CONFIDENCE_THRESHOLD = 0.45;
+
+interface ModelMeta {
+  numClasses: number;
+  numDetections: number;
+  transposed: boolean;
+}
 
 export default function ScannerScreen() {
   const { hasPermission, requestPermission } = useCameraPermission();
@@ -35,13 +40,38 @@ export default function ScannerScreen() {
 
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const model = useTensorflowModel(require('../../assets/models/best.tflite'), []);
+  const { resize } = useResizePlugin();
 
-  const [detectionCount, setDetectionCount] = useState(0);
   const [topDetection, setTopDetection] = useState<string | null>(null);
+  const [detectionCount, setDetectionCount] = useState(0);
+  const [modelMeta, setModelMeta] = useState<ModelMeta | null>(null);
 
   useEffect(() => {
     console.log('[TFLite] Model state:', model.state);
-  }, [model.state]);
+    if (model.state === 'loaded') {
+      const inputs = model.model.inputs;
+      const outputs = model.model.outputs;
+      console.log('[TFLite] Inputs:', JSON.stringify(inputs));
+      console.log('[TFLite] Outputs:', JSON.stringify(outputs));
+
+      const shape = outputs[0].shape;
+      // shape is [1, C, D] or [1, D, C]
+      // where C = 4 + numClasses, D = numDetections (typically 8400)
+      const dim1 = shape[1];
+      const dim2 = shape[2];
+      const transposed = dim1 > dim2;
+      const numDetections = transposed ? dim1 : dim2;
+      const numCols = transposed ? dim2 : dim1;
+      const numClasses = numCols - 4;
+
+      const meta: ModelMeta = { numClasses, numDetections, transposed };
+      setModelMeta(meta);
+      console.log(
+        `[TFLite] ${numClasses} classes, ${numDetections} detections, ` +
+          `format=${transposed ? 'NHWC [1,D,C]' : 'NCHW [1,C,D]'}`,
+      );
+    }
+  }, [model.state, model.model]);
 
   useEffect(() => {
     (async () => {
@@ -54,74 +84,73 @@ export default function ScannerScreen() {
 
   const actualModel = model.state === 'loaded' ? model.model : undefined;
 
-  // ─────────────────────────────────────────────────────────────────────
-  // FRAME OUTPUT — VisionCamera v5 API (replaces v4 useFrameProcessor)
-  // onFrame runs as a worklet on the camera's native thread.
-  // ─────────────────────────────────────────────────────────────────────
-  const frameOutput = useFrameOutput({
-    pixelFormat: 'rgb',
-    targetResolution: { width: 640, height: 640 },
-    dropFramesWhileBusy: true,
-    onFrame: (frame) => {
+  // Box the Nitro HybridObject so VisionCamera v4 worklets can capture it
+  const boxedModel = useMemo(
+    () => (actualModel != null ? NitroModules.box(actualModel) : undefined),
+    [actualModel],
+  );
+
+  const frameProcessor = useFrameProcessor(
+    (frame) => {
       'worklet';
+      if (boxedModel == null || modelMeta == null) return;
 
-      if (actualModel != null) {
-        try {
-          // Get raw RGB bytes from the frame (zero-copy GPU → CPU download)
-          const pixelBuffer = frame.getPixelBuffer();
-          const src = new Uint8Array(pixelBuffer);
+      const m = boxedModel.unbox();
+      const { numClasses, numDetections, transposed } = modelMeta;
 
-          // Normalise uint8 [0–255] → float32 [0–1] as YOLOv8 expects
-          const dst = new Float32Array(src.length);
-          for (let i = 0; i < src.length; i++) {
-            dst[i] = src[i] / 255.0;
-          }
+      try {
+        // Resize camera frame → 640×640 RGB float32 normalised [0,1]
+        const resized = resize(frame, {
+          scale: { width: 640, height: 640 },
+          pixelFormat: 'rgb',
+          dataType: 'float32',
+        });
 
-          // Run YOLOv8 inference
-          const outputs = actualModel.runSync([dst.buffer]);
-          const output = new Float32Array(outputs[0] as unknown as ArrayBuffer);
+        const outputs = m.runSync([resized.buffer as ArrayBuffer]);
+        const output = new Float32Array(outputs[0]);
 
-          let bestConfidence = 0;
-          let bestClassIdx = -1;
-          let detectionsAboveThreshold = 0;
+        let bestConfidence = 0;
+        let bestClassIdx = -1;
+        let aboveThreshold = 0;
+        const numCols = 4 + numClasses;
 
-          // YOLO NCHW output layout: index = channel * NUM_DETECTIONS + anchor
-          // Channels 0–3 = cx,cy,w,h  |  channels 4–14 = class scores
-          for (let i = 0; i < NUM_DETECTIONS; i++) {
-            let boxBestClass = 0;
-            let boxBestConf = 0;
-            for (let c = 0; c < NUM_CLASSES; c++) {
-              const conf = output[(4 + c) * NUM_DETECTIONS + i];
-              if (conf > boxBestConf) {
-                boxBestConf = conf;
-                boxBestClass = c;
-              }
-            }
-            if (boxBestConf > CONFIDENCE_THRESHOLD) {
-              detectionsAboveThreshold++;
-              if (boxBestConf > bestConfidence) {
-                bestConfidence = boxBestConf;
-                bestClassIdx = boxBestClass;
-              }
+        for (let i = 0; i < numDetections; i++) {
+          let boxBestClass = 0;
+          let boxBestConf = 0;
+
+          for (let c = 0; c < numClasses; c++) {
+            const conf = transposed
+              ? output[i * numCols + (4 + c)]
+              : output[(4 + c) * numDetections + i];
+
+            if (conf > boxBestConf) {
+              boxBestConf = conf;
+              boxBestClass = c;
             }
           }
 
-          scheduleOnRN(setDetectionCount, detectionsAboveThreshold);
-          if (bestClassIdx >= 0) {
-            const label = `${CLASS_NAMES[bestClassIdx]} (${Math.round(bestConfidence * 100)}%)`;
-            scheduleOnRN(setTopDetection, label);
-          } else {
-            scheduleOnRN(setTopDetection, null);
+          if (boxBestConf > CONFIDENCE_THRESHOLD) {
+            aboveThreshold++;
+            if (boxBestConf > bestConfidence) {
+              bestConfidence = boxBestConf;
+              bestClassIdx = boxBestClass;
+            }
           }
-        } catch {
-          // inference errors are silent — model may still be warming up
         }
-      }
 
-      // Must always dispose to avoid stalling the camera pipeline
-      frame.dispose();
+        scheduleOnRN(setDetectionCount, aboveThreshold);
+        if (bestClassIdx >= 0 && bestClassIdx < CLASS_NAMES.length) {
+          const label = `${CLASS_NAMES[bestClassIdx]} (${Math.round(bestConfidence * 100)}%)`;
+          scheduleOnRN(setTopDetection, label);
+        } else {
+          scheduleOnRN(setTopDetection, null);
+        }
+      } catch {
+        // Inference error — silently ignore to avoid console spam
+      }
     },
-  });
+    [boxedModel, resize, modelMeta],
+  );
 
   if (loading) {
     return (
@@ -134,7 +163,9 @@ export default function ScannerScreen() {
   if (!hasPermission) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.message}>Camera permission is required to detect traffic signs.</Text>
+        <Text style={styles.message}>
+          Camera permission is required to detect traffic signs.
+        </Text>
         <TouchableOpacity style={styles.button} onPress={requestPermission}>
           <Text style={styles.buttonText}>Grant Permission</Text>
         </TouchableOpacity>
@@ -152,17 +183,20 @@ export default function ScannerScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Pass frameOutput via outputs[] — VisionCamera v5 API */}
       <Camera
         style={StyleSheet.absoluteFill}
         device={device}
         isActive={true}
-        outputs={[frameOutput]}
+        frameProcessor={frameProcessor}
       />
 
       <View style={styles.topOverlay}>
         <Text style={styles.overlayText}>
-          {model.state === 'loaded' ? '✓ Model ready' : '⏳ Loading model...'}
+          {model.state === 'loaded'
+            ? '✓ Model ready'
+            : model.state === 'error'
+              ? '⚠ Placeholder model'
+              : '⏳ Loading model...'}
         </Text>
       </View>
 
