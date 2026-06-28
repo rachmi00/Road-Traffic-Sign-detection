@@ -1,0 +1,101 @@
+[
+  {
+    "classIndex": 0,
+    "name": "Speed Limit 30",
+    "name_fr": "Limitation 30",
+    "meaning": "Maximum speed is 30 km/h.",
+    "meaning_fr": "Vitesse maximale 30 km/h.",
+    "utterance_en": "Speed limit thirty ahead",
+    "utterance_fr": "Limitation de vitesse trente"
+  },
+  {
+    "classIndex": 1,
+    "name": "Speed Limit 50",
+    "name_fr": "Limitation 50",
+    "meaning": "Maximum speed is 50 km/h.",
+    "meaning_fr": "Vitesse maximale 50 km/h.",
+    "utterance_en": "Speed limit fifty ahead",
+    "utterance_fr": "Limitation de vitesse cinquante"
+  },
+  {
+    "classIndex": 2,
+    "name": "Priority Road",
+    "name_fr": "Route prioritaire",
+    "meaning": "You are on a priority road. Traffic from side roads must yield.",
+    "meaning_fr": "Vous êtes sur une route prioritaire. Le trafic des routes secondaires doit céder le passage.",
+    "utterance_en": "Priority road ahead",
+    "utterance_fr": "Route prioritaire devant"
+  },
+  {
+    "classIndex": 3,
+    "name": "Give Way",
+    "name_fr": "Cédez le passage",
+    "meaning": "Yield to traffic on the intersecting road.",
+    "meaning_fr": "Cédez le passage au trafic de la route transversale.",
+    "utterance_en": "Give way ahead",
+    "utterance_fr": "Cédez le passage devant"
+  },
+  {
+    "classIndex": 4,
+    "name": "Stop",
+    "name_fr": "Arrêt",
+    "meaning": "Come to a complete stop before proceeding.",
+    "meaning_fr": "Arrêtez-vous complètement avant de continuer.",
+    "utterance_en": "Stop sign ahead",
+    "utterance_fr": "Panneau stop devant"
+  },
+  {
+    "classIndex": 5,
+    "name": "No Entry",
+    "name_fr": "Sens interdit",
+    "meaning": "Entry is prohibited for all vehicles in this direction.",
+    "meaning_fr": "L'entrée est interdite à tous les véhicules dans cette direction.",
+    "utterance_en": "No entry ahead",
+    "utterance_fr": "Sens interdit devant"
+  },
+  {
+    "classIndex": 6,
+    "name": "Road Work",
+    "name_fr": "Travaux",
+    "meaning": "Road works ahead. Slow down and proceed with caution.",
+    "meaning_fr": "Travaux en cours. Ralentissez et procédez avec prudence.",
+    "utterance_en": "Road work ahead",
+    "utterance_fr": "Travaux devant"
+  },
+  {
+    "classIndex": 7,
+    "name": "Traffic Lights Ahead",
+    "name_fr": "Feux de signalisation",
+    "meaning": "Traffic lights ahead. Be prepared to stop.",
+    "meaning_fr": "Feux de signalisation devant. Préparez-vous à vous arrêter.",
+    "utterance_en": "Traffic lights ahead",
+    "utterance_fr": "Feux de signalisation devant"
+  },
+  {
+    "classIndex": 8,
+    "name": "Pedestrian Crossing",
+    "name_fr": "Passage piétons",
+    "meaning": "Pedestrian crossing ahead. Yield to pedestrians.",
+    "meaning_fr": "Passage piétons devant. Cédez le passage aux piétons.",
+    "utterance_en": "Pedestrian crossing ahead",
+    "utterance_fr": "Passage piétons devant"
+  },
+  {
+    "classIndex": 9,
+    "name": "Roundabout",
+    "name_fr": "Rond-point",
+    "meaning": "Roundabout ahead. Yield to traffic already in the roundabout.",
+    "meaning_fr": "Rond-point devant. Cédez le passage au trafic déjà engagé.",
+    "utterance_en": "Roundabout ahead",
+    "utterance_fr": "Rond-point devant"
+  },
+  {
+    "classIndex": 10,
+    "name": "No Parking",
+    "name_fr": "Stationnement interdit",
+    "meaning": "Parking is prohibited in this area.",
+    "meaning_fr": "Le stationnement est interdit dans cette zone.",
+    "utterance_en": "No parking zone",
+    "utterance_fr": "Zone de stationnement interdit"
+  }
+]
