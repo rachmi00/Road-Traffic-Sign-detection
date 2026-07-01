@@ -34,7 +34,9 @@ const CLASS_NAMES = [
   'No Parking',
 ] as const;
 
-const CONFIDENCE_THRESHOLD = 0.45;
+const CONFIDENCE_THRESHOLD = 0.70;
+const TTS_THRESHOLD = 0.70;
+const MIN_BOX_SIZE = 0.05;
 const IOU_THRESHOLD = 0.5;
 const MAX_DETECTIONS = 5;
 
@@ -75,9 +77,11 @@ export default function ScannerScreen() {
   const { resize } = useResizePlugin();
 
   const [resultStr, setResultStr] = useState('');
+  const [diagStr, setDiagStr] = useState('');
   const [modelMeta, setModelMeta] = useState<ModelMeta | null>(null);
 
   const updateResult = Worklets.createRunOnJS(setResultStr);
+  const updateDiag = Worklets.createRunOnJS(setDiagStr);
 
   useEffect(() => {
     if (model.state === 'loaded') {
@@ -98,42 +102,39 @@ export default function ScannerScreen() {
     })();
   }, [hasPermission, requestPermission]);
 
-  // Parse multi-detection result string
-  // Format: "cls,conf,x,y,w,h;cls,conf,x,y,w,h;..." or "NONE|maxScore" or "ERR|msg"
   const { detections, debugInfo } = useMemo(() => {
     if (!resultStr) return { detections: [] as Detection[], debugInfo: '' };
-
-    if (resultStr.startsWith('NONE|')) {
+    if (resultStr.startsWith('NONE|'))
       return { detections: [] as Detection[], debugInfo: `max: ${resultStr.split('|')[1]}` };
-    }
-    if (resultStr.startsWith('ERR|')) {
+    if (resultStr.startsWith('ERR|'))
       return { detections: [] as Detection[], debugInfo: resultStr };
-    }
 
     const dets: Detection[] = [];
-    const parts = resultStr.split(';');
-    for (const part of parts) {
-      const vals = part.split(',');
-      if (vals.length >= 6) {
+    for (const part of resultStr.split(';')) {
+      const v = part.split(',');
+      if (v.length >= 6) {
         dets.push({
-          classIdx: parseInt(vals[0], 10),
-          confidence: parseFloat(vals[1]),
-          x: parseFloat(vals[2]),
-          y: parseFloat(vals[3]),
-          w: parseFloat(vals[4]),
-          h: parseFloat(vals[5]),
+          classIdx: parseInt(v[0], 10),
+          confidence: parseFloat(v[1]),
+          x: parseFloat(v[2]),
+          y: parseFloat(v[3]),
+          w: parseFloat(v[4]),
+          h: parseFloat(v[5]),
         });
       }
     }
-    const maxConf = dets.length > 0 ? Math.max(...dets.map((d) => d.confidence)) : 0;
-    return { detections: dets, debugInfo: `${dets.length} signs · max: ${maxConf.toFixed(2)}` };
+    const info =
+      dets.length > 0
+        ? `${dets.length} sign(s) · bbox: x${dets[0].x.toFixed(2)} y${dets[0].y.toFixed(2)} w${dets[0].w.toFixed(2)} h${dets[0].h.toFixed(2)}`
+        : '';
+    return { detections: dets, debugInfo: info };
   }, [resultStr]);
 
-  // TTS for the highest-confidence detection
+  // TTS only above 60%
   useEffect(() => {
     if (detections.length > 0) {
       const best = detections.reduce((a, b) => (b.confidence > a.confidence ? b : a));
-      announce(best.classIdx, lang);
+      if (best.confidence >= TTS_THRESHOLD) announce(best.classIdx, lang);
     }
   }, [detections, announce, lang]);
 
@@ -162,7 +163,13 @@ export default function ScannerScreen() {
         const output = new Float32Array(outputs[0]);
         const numCols = 4 + numClasses;
 
-        // Collect all detections above threshold
+        // Stage A diagnostic: dump first 30 values + length (runs every frame, read once then remove)
+        const first30: number[] = [];
+        for (let k = 0; k < 30 && k < output.length; k++) {
+          first30.push(Math.round(output[k] * 10000) / 10000);
+        }
+        updateDiag(`len:${output.length}|${first30.join(',')}`);
+
         const candidates: {
           cls: number; conf: number;
           cx: number; cy: number; bw: number; bh: number;
@@ -190,7 +197,9 @@ export default function ScannerScreen() {
             const cy = transposed ? output[i * numCols + 1] : output[numDetections + i];
             const bw = transposed ? output[i * numCols + 2] : output[2 * numDetections + i];
             const bh = transposed ? output[i * numCols + 3] : output[3 * numDetections + i];
-            candidates.push({ cls: boxBestClass, conf: boxBestConf, cx, cy, bw, bh });
+            if (bw > MIN_BOX_SIZE && bh > MIN_BOX_SIZE) {
+              candidates.push({ cls: boxBestClass, conf: boxBestConf, cx, cy, bw, bh });
+            }
           }
         }
 
@@ -199,17 +208,14 @@ export default function ScannerScreen() {
           return;
         }
 
-        // Sort by confidence descending
         candidates.sort((a, b) => b.conf - a.conf);
 
         // Greedy NMS
         const kept: typeof candidates = [];
         const suppressed = new Set<number>();
-
         for (let i = 0; i < candidates.length && kept.length < MAX_DETECTIONS; i++) {
           if (suppressed.has(i)) continue;
           kept.push(candidates[i]);
-
           const a = candidates[i];
           const ax1 = a.cx - a.bw / 2;
           const ay1 = a.cy - a.bh / 2;
@@ -223,30 +229,30 @@ export default function ScannerScreen() {
             const by1 = b.cy - b.bh / 2;
             const bx2 = b.cx + b.bw / 2;
             const by2 = b.cy + b.bh / 2;
-
-            const ix1 = ax1 > bx1 ? ax1 : bx1;
-            const iy1 = ay1 > by1 ? ay1 : by1;
-            const ix2 = ax2 < bx2 ? ax2 : bx2;
-            const iy2 = ay2 < by2 ? ay2 : by2;
-
-            const iw = ix2 - ix1 > 0 ? ix2 - ix1 : 0;
-            const ih = iy2 - iy1 > 0 ? iy2 - iy1 : 0;
+            const iw = Math.max(0, Math.min(ax2, bx2) - Math.max(ax1, bx1));
+            const ih = Math.max(0, Math.min(ay2, by2) - Math.max(ay1, by1));
             const inter = iw * ih;
             const union = a.bw * a.bh + b.bw * b.bh - inter;
-
-            if (union > 0 && inter / union > IOU_THRESHOLD) {
-              suppressed.add(j);
-            }
+            if (union > 0 && inter / union > IOU_THRESHOLD) suppressed.add(j);
           }
         }
 
-        // Encode as string: "cls,conf,nx,ny,nw,nh;..."
+        // Auto-detect coordinate format: if max coord > 2 → pixels (0-640), else normalized (0-1)
+        let coordMax = 0;
+        for (const d of kept) {
+          if (d.cx > coordMax) coordMax = d.cx;
+          if (d.cy > coordMax) coordMax = d.cy;
+          if (d.bw > coordMax) coordMax = d.bw;
+          if (d.bh > coordMax) coordMax = d.bh;
+        }
+        const scale = coordMax > 2 ? 640 : 1;
+
         const encoded = kept
           .map((d) => {
-            const nx = (d.cx - d.bw / 2) / 640;
-            const ny = (d.cy - d.bh / 2) / 640;
-            const nw = d.bw / 640;
-            const nh = d.bh / 640;
+            const nx = (d.cx - d.bw / 2) / scale;
+            const ny = (d.cy - d.bh / 2) / scale;
+            const nw = d.bw / scale;
+            const nh = d.bh / scale;
             return `${d.cls},${d.conf.toFixed(3)},${nx.toFixed(4)},${ny.toFixed(4)},${nw.toFixed(4)},${nh.toFixed(4)}`;
           })
           .join(';');
@@ -257,7 +263,7 @@ export default function ScannerScreen() {
         updateResult(`ERR|${msg}`);
       }
     },
-    [boxedModel, resize, modelMeta, updateResult],
+    [boxedModel, resize, modelMeta, updateResult, updateDiag],
   );
 
   if (loading) {
@@ -289,12 +295,6 @@ export default function ScannerScreen() {
     );
   }
 
-  // Map model's square crop to screen coordinates
-  // The resize plugin center-crops to a square, which maps to the full screen width
-  // and a centered vertical region of the same width
-  const boxSize = Math.min(screenW, screenH);
-  const yOffset = (screenH - boxSize) / 2;
-
   return (
     <View style={styles.container}>
       <Camera
@@ -304,12 +304,17 @@ export default function ScannerScreen() {
         frameProcessor={frameProcessor}
       />
 
-      {/* Bounding boxes for all detections */}
+      {/* Bounding boxes — model outputs square [0,1] coords, map to centered square on screen */}
       {detections.map((det, i) => {
-        const left = det.x * boxSize;
-        const top = det.y * boxSize + yOffset;
-        const width = det.w * boxSize;
-        const height = det.h * boxSize;
+        const squareSize = Math.min(screenW, screenH);
+        const yOff = (screenH - squareSize) / 2;
+        const left = det.x * squareSize;
+        const top = det.y * squareSize + yOff;
+        const width = det.w * squareSize;
+        const height = det.h * squareSize;
+
+        if (width < 10 || height < 10) return null;
+
         const clsName = CLASS_NAMES[det.classIdx] ?? `Class ${det.classIdx}`;
         const pct = Math.round(det.confidence * 100);
 
@@ -320,8 +325,8 @@ export default function ScannerScreen() {
                 position: 'absolute',
                 left,
                 top,
-                width: Math.max(width, 20),
-                height: Math.max(height, 20),
+                width,
+                height,
                 borderWidth: 3,
                 borderColor: '#00FF88',
                 borderRadius: 6,
@@ -362,11 +367,13 @@ export default function ScannerScreen() {
       <View style={styles.bottomOverlay}>
         <Text style={styles.bigLabel}>
           {detections.length > 0
-            ? `[${detections[0].classIdx}] ${CLASS_NAMES[detections[0].classIdx]} (${Math.round(detections[0].confidence * 100)}%)`
+            ? `${CLASS_NAMES[detections[0].classIdx]} (${Math.round(detections[0].confidence * 100)}%)`
             : 'No sign detected'}
         </Text>
         <Text style={styles.smallLabel}>{debugInfo}</Text>
       </View>
+
+      {/* Stage A diagnostic — verified: [1,15,8400] NCHW, normalized [0,1] coords */}
     </View>
   );
 }
@@ -456,6 +463,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
+  },
+  diagOverlay: {
+    position: 'absolute',
+    bottom: 10,
+    left: 10,
+    right: 10,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    padding: 8,
+    borderRadius: 6,
+  },
+  diagText: {
+    color: '#0f0',
+    fontSize: 9,
+    fontFamily: 'monospace',
   },
   langText: {
     color: 'white',

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { StyleSheet, Text, ScrollView, View, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import * as Speech from 'expo-speech';
@@ -8,63 +9,73 @@ export default function InfoScreen() {
   const idx = classIndex != null ? parseInt(classIndex, 10) : null;
   const sign = idx != null ? signsData.find((s) => s.classIndex === idx) : null;
 
+  const [lang, setLang] = useState<'en' | 'fr'>('en');
+  const isFr = lang === 'fr';
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Traffic Sign Recognition</Text>
+      <View style={styles.header}>
+        <Text style={styles.title}>
+          {isFr ? 'Reconnaissance de Panneaux' : 'Traffic Sign Recognition'}
+        </Text>
+        <TouchableOpacity
+          style={styles.langToggle}
+          onPress={() => setLang((l) => (l === 'en' ? 'fr' : 'en'))}
+        >
+          <Text style={styles.langText}>{isFr ? '🇫🇷 FR' : '🇬🇧 EN'}</Text>
+        </TouchableOpacity>
+      </View>
 
       {sign != null ? (
         <View style={styles.card}>
-          <Text style={styles.signName}>{sign.name}</Text>
-          <Text style={styles.signNameFr}>{sign.name_fr}</Text>
+          <Text style={styles.signName}>{isFr ? sign.name_fr : sign.name}</Text>
 
-          <Text style={styles.sectionHeader}>Highway Code Meaning</Text>
-          <Text style={styles.paragraph}>{sign.meaning}</Text>
-
-          <Text style={styles.sectionHeader}>Signification</Text>
-          <Text style={styles.paragraph}>{sign.meaning_fr}</Text>
+          <Text style={styles.sectionHeader}>
+            {isFr ? 'Signification routière' : 'Highway Code Meaning'}
+          </Text>
+          <Text style={styles.paragraph}>{isFr ? sign.meaning_fr : sign.meaning}</Text>
 
           <TouchableOpacity
             style={styles.playButton}
             onPress={() => {
               Speech.stop();
-              Speech.speak(sign.utterance_en, { language: 'en' });
+              const utterance = isFr ? sign.utterance_fr : sign.utterance_en;
+              Speech.speak(utterance, { language: lang });
             }}
           >
-            <Text style={styles.playButtonText}>🔊 Play Audio (EN)</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.playButton, styles.playButtonFr]}
-            onPress={() => {
-              Speech.stop();
-              Speech.speak(sign.utterance_fr, { language: 'fr' });
-            }}
-          >
-            <Text style={styles.playButtonText}>🔊 Jouer Audio (FR)</Text>
+            <Text style={styles.playButtonText}>
+              🔊 {isFr ? 'Jouer Audio' : 'Play Audio'}
+            </Text>
           </TouchableOpacity>
         </View>
       ) : (
         <View style={styles.card}>
-          <Text style={styles.noSign}>No sign selected</Text>
+          <Text style={styles.noSign}>
+            {isFr ? 'Aucun panneau sélectionné' : 'No sign selected'}
+          </Text>
           <Text style={styles.paragraph}>
-            Point the camera at a traffic sign on the Scanner tab. Once detected,
-            tap the sign name to see its details here.
+            {isFr
+              ? "Pointez la caméra vers un panneau de signalisation dans l'onglet Scanner. Une fois détecté, ses détails apparaîtront ici."
+              : 'Point the camera at a traffic sign on the Scanner tab. Once detected, its details will appear here.'}
           </Text>
         </View>
       )}
 
-      <Text style={styles.sectionHeader}>All Supported Signs</Text>
+      <Text style={styles.sectionHeader}>
+        {isFr ? 'Tous les panneaux supportés' : 'All Supported Signs'}
+      </Text>
       {signsData.map((s) => (
         <TouchableOpacity
           key={s.classIndex}
           style={styles.listItem}
           onPress={() => {
             Speech.stop();
-            Speech.speak(s.utterance_en, { language: 'en' });
+            const utterance = isFr ? s.utterance_fr : s.utterance_en;
+            Speech.speak(utterance, { language: lang });
           }}
         >
-          <Text style={styles.listName}>{s.name}</Text>
-          <Text style={styles.listMeaning}>{s.meaning}</Text>
+          <Text style={styles.listName}>{isFr ? s.name_fr : s.name}</Text>
+          <Text style={styles.listMeaning}>{isFr ? s.meaning_fr : s.meaning}</Text>
         </TouchableOpacity>
       ))}
     </ScrollView>
@@ -81,11 +92,29 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 40,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 16,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: 'bold',
     color: '#1f3b66',
+    flex: 1,
+  },
+  langToggle: {
+    backgroundColor: '#1f3b66',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginLeft: 8,
+  },
+  langText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
   },
   card: {
     backgroundColor: '#fff',
@@ -98,12 +127,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: 'bold',
     color: '#1f3b66',
-  },
-  signNameFr: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 16,
-    fontStyle: 'italic',
+    marginBottom: 8,
   },
   noSign: {
     fontSize: 18,
@@ -129,10 +153,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
-  },
-  playButtonFr: {
-    marginTop: 8,
-    backgroundColor: '#2e5a94',
   },
   playButtonText: {
     color: '#fff',
