@@ -1,5 +1,4 @@
 import { Tabs } from 'expo-router';
-import React from 'react';
 import { Ionicons } from '@expo/vector-icons';
 
 import { HapticTab } from '@/components/haptic-tab';
@@ -26,8 +25,15 @@ export default function TabLayout() {
       <Tabs.Screen
         name="explore"
         options={{
-          title: 'Info',
-          tabBarIcon: ({ color }) => <Ionicons name="information-circle" size={28} color={color} />,
+          title: 'Signs',
+          tabBarIcon: ({ color }) => <Ionicons name="book-outline" size={26} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="history"
+        options={{
+          title: 'Trip Log',
+          tabBarIcon: ({ color }) => <Ionicons name="time-outline" size={26} color={color} />,
         }}
       />
     </Tabs>
