@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AppState, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { AppState, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera';
+import { loadTensorflowModel, type TfliteModel } from 'react-native-fast-tflite';
 import { useSpeechAnnouncement } from '@/hooks/useSpeechAnnouncement';
 import { useModelSetup } from '@/hooks/useModelSetup';
 import { useFrameInference } from '@/hooks/useFrameInference';
@@ -31,7 +32,26 @@ export default function ScannerScreen() {
   const [lang, setLang] = useState<'en' | 'fr'>('en');
   const [resultStr, setResultStr] = useState('');
 
-  const { modelState, modelMeta, boxedModel } = useModelSetup();
+  const [tfliteModel, setTfliteModel] = useState<TfliteModel | null>(null);
+  const [modelState, setModelState] = useState<'loading' | 'loaded' | 'error'>('loading');
+  const [modelError, setModelError] = useState('');
+
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    loadTensorflowModel(require('../../assets/models/best.tflite'), [])
+      .then((m) => {
+        setTfliteModel(m);
+        setModelState('loaded');
+      })
+      .catch((e: unknown) => {
+        const msg = e instanceof Error ? e.message : String(e);
+        setModelError(msg);
+        setModelState('error');
+        console.error('[TFLite] Load failed:', msg);
+      });
+  }, []);
+
+  const { modelMeta, boxedModel } = useModelSetup(tfliteModel);
   const frameProcessor = useFrameInference(boxedModel, modelMeta, setResultStr);
 
   const { detections, debugInfo } = useMemo(() => {
@@ -97,6 +117,18 @@ export default function ScannerScreen() {
     );
   }
 
+  if (modelState === 'error') {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.errorTitle}>Model failed to load</Text>
+        <ScrollView style={styles.errorBox}>
+          <Text style={styles.errorMsg} selectable>{modelError || 'Unknown error'}</Text>
+        </ScrollView>
+        <Text style={styles.errorHint}>Screenshot this screen and share it.</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <Camera
@@ -119,10 +151,7 @@ export default function ScannerScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
+  container: { flex: 1, backgroundColor: '#000' },
   centered: {
     flex: 1,
     justifyContent: 'center',
@@ -130,21 +159,18 @@ const styles = StyleSheet.create({
     padding: 24,
     backgroundColor: '#000',
   },
-  message: {
-    color: 'white',
-    fontSize: 16,
-    textAlign: 'center',
+  message: { color: 'white', fontSize: 16, textAlign: 'center', marginBottom: 16 },
+  button: { backgroundColor: '#1f3b66', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 },
+  buttonText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
+  errorTitle: { color: '#FF6B6B', fontSize: 18, fontWeight: '700', marginBottom: 16 },
+  errorBox: {
+    backgroundColor: '#111',
+    borderRadius: 8,
+    padding: 12,
+    maxHeight: 300,
+    width: '100%',
     marginBottom: 16,
   },
-  button: {
-    backgroundColor: '#1f3b66',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  buttonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
+  errorMsg: { color: '#FF6B6B', fontSize: 12, fontFamily: 'monospace' },
+  errorHint: { color: '#888', fontSize: 13, textAlign: 'center' },
 });
