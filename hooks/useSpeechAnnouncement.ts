@@ -2,7 +2,7 @@ import { useCallback, useRef } from 'react';
 import * as Speech from 'expo-speech';
 import signsData from '../assets/signs.json';
 
-const COOLDOWN_MS = 5000;
+const COOLDOWN_MS = 8000;
 
 export function useSpeechAnnouncement() {
   const lastAnnounced = useRef<Map<number, number>>(new Map());

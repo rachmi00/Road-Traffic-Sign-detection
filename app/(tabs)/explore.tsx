@@ -82,21 +82,14 @@ function SignRow({
     <View>
       <TouchableOpacity style={styles.rowHeader} onPress={handleToggle} activeOpacity={0.7}>
         <SignIcon classIdx={sign.classIndex} />
-        <View style={styles.rowMeta}>
-          <Text style={styles.rowName}>{isFr ? sign.name_fr : sign.name}</Text>
-          <View style={[styles.catBadge, { backgroundColor: meta.color + '22', borderColor: meta.color + '55' }]}>
-            <Text style={[styles.catBadgeText, { color: meta.color }]}>
-              {isFr ? (CATEGORY_FR[meta.category] ?? meta.category) : meta.category}
-            </Text>
-          </View>
-        </View>
+        <Text style={styles.rowName}>{isFr ? sign.name_fr : sign.name}</Text>
         <Animated.View style={{ transform: [{ rotate: chevronRotate }] }}>
           <Ionicons name="chevron-forward" size={18} color="#C7C7CC" />
         </Animated.View>
       </TouchableOpacity>
 
       {expanded && (
-        <View style={[styles.rowBody, { borderTopColor: meta.color + '33' }]}>
+        <View style={styles.rowBody}>
           <Text style={styles.meaningText}>{isFr ? sign.meaning_fr : sign.meaning}</Text>
           <TouchableOpacity
             style={[styles.playBtn, { backgroundColor: meta.color }]}
@@ -189,14 +182,11 @@ export default function InfoScreen() {
         {CATEGORIES.map((cat) => {
           const signs = signsData.filter((s) => (SIGN_META[s.classIndex]?.category ?? '') === cat);
           if (signs.length === 0) return null;
-          const catColor = SIGN_META[signs[0].classIndex]?.color ?? '#888';
           return (
             <View key={cat} style={styles.section}>
-              <View style={[styles.sectionHeader, { borderLeftColor: catColor }]}>
-                <Text style={styles.sectionTitle}>
-                  {isFr ? (CATEGORY_FR[cat] ?? cat) : cat}
-                </Text>
-              </View>
+              <Text style={styles.sectionTitle}>
+                {isFr ? (CATEGORY_FR[cat] ?? cat) : cat}
+              </Text>
               <View style={styles.sectionCard}>
                 {signs.map((sign, si) => (
                   <View key={sign.classIndex}>
@@ -225,7 +215,7 @@ export default function InfoScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F2F2F7' },
+  container: { flex: 1, backgroundColor: '#EBF0F7' },
   navHeader: {
     backgroundColor: '#1C2E4A',
     paddingTop: 58,
@@ -273,9 +263,16 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   heroPlayBtnText: { fontSize: 15, fontWeight: '700' },
-  section: { marginBottom: 22 },
-  sectionHeader: { borderLeftWidth: 3, paddingLeft: 10, marginBottom: 10 },
-  sectionTitle: { fontSize: 12, fontWeight: '700', color: '#3C3C43', letterSpacing: 0.5, textTransform: 'uppercase' },
+  section: { marginBottom: 24 },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#8E8E93',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
   sectionCard: {
     backgroundColor: '#fff',
     borderRadius: 14,
@@ -287,12 +284,9 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: '#E5E5EA', marginLeft: 74 },
-  rowHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, gap: 14 },
-  rowMeta: { flex: 1, gap: 5 },
-  rowName: { fontSize: 16, fontWeight: '600', color: '#1C1C1E' },
-  catBadge: { alignSelf: 'flex-start', borderWidth: 1, borderRadius: 4, paddingHorizontal: 7, paddingVertical: 2 },
-  catBadgeText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.3 },
-  rowBody: { paddingHorizontal: 16, paddingBottom: 16, borderTopWidth: StyleSheet.hairlineWidth },
+  rowHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, paddingHorizontal: 16, gap: 14 },
+  rowName: { flex: 1, fontSize: 16, fontWeight: '500', color: '#1C1C1E' },
+  rowBody: { paddingHorizontal: 16, paddingBottom: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#E2E8F0' },
   meaningText: { fontSize: 14, lineHeight: 21, color: '#636366', paddingTop: 12, marginBottom: 14 },
   playBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 10 },
   playBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },

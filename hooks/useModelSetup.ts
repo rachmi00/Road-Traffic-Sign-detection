@@ -10,7 +10,7 @@ export interface ModelMeta {
 
 export function useModelSetup() {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const model = useTensorflowModel(require('../assets/models/best.tflite'), ['nnapi']);
+  const model = useTensorflowModel(require('../assets/models/best.tflite'), []);
   const [modelMeta, setModelMeta] = useState<ModelMeta | null>(null);
 
   useEffect(() => {

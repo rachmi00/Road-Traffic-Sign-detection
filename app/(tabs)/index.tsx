@@ -14,7 +14,9 @@ const TTS_THRESHOLD = 0.7;
 
 export default function ScannerScreen() {
   const { hasPermission, requestPermission } = useCameraPermission();
-  const device = useCameraDevice('back');
+  const device = useCameraDevice('back', {
+    physicalDevices: ['wide-angle-camera'],
+  });
   const { width: screenW, height: screenH } = useWindowDimensions();
   const isFocused = useIsFocused();
   const announce = useSpeechAnnouncement();
