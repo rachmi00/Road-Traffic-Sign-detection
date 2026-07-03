@@ -12,7 +12,7 @@ import { StatusOverlay } from '@/components/StatusOverlay';
 import { logDetection } from '@/store/detectionHistory';
 import type { Detection } from '@/components/DetectionOverlay';
 
-const TTS_THRESHOLD = 0.6; // lowered: announce signs detected with ≥60% confidence in moving car
+const TTS_THRESHOLD = 0.45;
 
 export default function ScannerScreen() {
   const { hasPermission, requestPermission } = useCameraPermission();
