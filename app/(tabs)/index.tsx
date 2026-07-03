@@ -3,6 +3,7 @@ import { AppState, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWind
 import { useIsFocused } from '@react-navigation/native';
 import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera';
 import { loadTensorflowModel, type TfliteModel } from 'react-native-fast-tflite';
+import { Asset } from 'expo-asset';
 import { useSpeechAnnouncement } from '@/hooks/useSpeechAnnouncement';
 import { useModelSetup } from '@/hooks/useModelSetup';
 import { useFrameInference } from '@/hooks/useFrameInference';
@@ -11,13 +12,11 @@ import { StatusOverlay } from '@/components/StatusOverlay';
 import { logDetection } from '@/store/detectionHistory';
 import type { Detection } from '@/components/DetectionOverlay';
 
-const TTS_THRESHOLD = 0.7;
+const TTS_THRESHOLD = 0.6; // lowered: announce signs detected with ≥60% confidence in moving car
 
 export default function ScannerScreen() {
   const { hasPermission, requestPermission } = useCameraPermission();
-  const device = useCameraDevice('back', {
-    physicalDevices: ['wide-angle-camera'],
-  });
+  const device = useCameraDevice('back');
   const { width: screenW, height: screenH } = useWindowDimensions();
   const isFocused = useIsFocused();
   const announce = useSpeechAnnouncement();
@@ -27,8 +26,6 @@ export default function ScannerScreen() {
     const sub = AppState.addEventListener('change', (s) => setAppActive(s === 'active'));
     return () => sub.remove();
   }, []);
-  const cameraActive = isFocused && appActive;
-
   const [lang, setLang] = useState<'en' | 'fr'>('en');
   const [resultStr, setResultStr] = useState('');
 
@@ -37,8 +34,18 @@ export default function ScannerScreen() {
   const [modelError, setModelError] = useState('');
 
   useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    loadTensorflowModel(require('../../assets/models/best.tflite'), [])
+    // expo-asset resolves the bundled .tflite to a file:// URI in release builds.
+    // Image.resolveAssetSource() (used by fast-tflite's require path) returns a
+    // bare asset name without protocol in release APKs, causing MalformedURLException.
+    Asset.loadAsync(require('../../assets/models/best.tflite'))
+      .then(([asset]) => {
+        if (!asset.localUri) throw new Error('Asset localUri unavailable');
+        const uri = asset.localUri;
+        // Try NNAPI (uses S22 Ultra NPU/DSP — 3–8× faster than CPU).
+        // Fall back to CPU if the delegate rejects the model ops.
+        return loadTensorflowModel({ url: uri }, ['nnapi'])
+          .catch(() => loadTensorflowModel({ url: uri }, []));
+      })
       .then((m) => {
         setTfliteModel(m);
         setModelState('loaded');
@@ -131,13 +138,14 @@ export default function ScannerScreen() {
 
   return (
     <View style={styles.container}>
-      <Camera
-        style={StyleSheet.absoluteFill}
-        device={device}
-        isActive={cameraActive}
-        frameProcessor={frameProcessor}
-        fps={15}
-      />
+      {isFocused && (
+        <Camera
+          style={StyleSheet.absoluteFill}
+          device={device}
+          isActive={appActive}
+          frameProcessor={frameProcessor}
+        />
+      )}
       <DetectionOverlay detections={detections} screenW={screenW} screenH={screenH} />
       <StatusOverlay
         modelState={modelState}

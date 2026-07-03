@@ -1,12 +1,14 @@
 import { useFrameProcessor } from 'react-native-vision-camera';
 import { useResizePlugin } from 'vision-camera-resize-plugin';
 import { Worklets } from 'react-native-worklets-core';
+import { useSharedValue } from 'react-native-reanimated';
 import type { ModelMeta } from './useModelSetup';
 
-const CONFIDENCE_THRESHOLD = 0.7;
+const CONFIDENCE_THRESHOLD = 0.5; // lowered: moving-car angles/blur reduce raw confidence
 const MIN_BOX_SIZE = 0.05;
 const IOU_THRESHOLD = 0.5;
 const MAX_DETECTIONS = 5;
+const FRAME_SKIP = 3; // run inference on every 3rd frame — kills the backlog
 
 export function useFrameInference(
   boxedModel: ReturnType<typeof import('react-native-nitro-modules').NitroModules.box> | undefined,
@@ -15,10 +17,16 @@ export function useFrameInference(
 ) {
   const { resize } = useResizePlugin();
   const updateResult = Worklets.createRunOnJS(setResult);
+  const frameCount = useSharedValue(0);
 
   const frameProcessor = useFrameProcessor(
     (frame) => {
       'worklet';
+      // Skip frames: only run inference every FRAME_SKIP frames.
+      // This prevents the inference queue from backing up at 30fps.
+      frameCount.value = (frameCount.value + 1) % FRAME_SKIP;
+      if (frameCount.value !== 0) return;
+
       if (boxedModel == null || modelMeta == null) return;
 
       const m = boxedModel.unbox();
@@ -129,7 +137,7 @@ export function useFrameInference(
         updateResult(`ERR|${msg}`);
       }
     },
-    [boxedModel, resize, modelMeta, updateResult],
+    [boxedModel, resize, modelMeta, updateResult, frameCount],
   );
 
   return frameProcessor;
