@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import {
   Animated,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,6 +12,21 @@ import { useLocalSearchParams } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { Ionicons } from '@expo/vector-icons';
 import signsData from '../../assets/signs.json';
+
+// sign_0.png doesn't exist — reuse sign_1 (Speed Limit 50) as the closest match
+const SIGN_IMAGES = [
+  require('../../assets/signs/sign_1.png'),
+  require('../../assets/signs/sign_1.png'),
+  require('../../assets/signs/sign_2.png'),
+  require('../../assets/signs/sign_3.png'),
+  require('../../assets/signs/sign_4.png'),
+  require('../../assets/signs/sign_5.png'),
+  require('../../assets/signs/sign_6.png'),
+  require('../../assets/signs/sign_7.png'),
+  require('../../assets/signs/sign_8.png'),
+  require('../../assets/signs/sign_9.png'),
+  require('../../assets/signs/sign_10.png'),
+];
 
 interface SignMeta {
   color: string;
@@ -44,6 +60,10 @@ const CATEGORY_FR: Record<string, string> = {
 };
 
 function SignIcon({ classIdx, size = 42 }: { classIdx: number; size?: number }) {
+  const img = SIGN_IMAGES[classIdx];
+  if (img != null) {
+    return <Image source={img} style={{ width: size, height: size }} resizeMode="contain" />;
+  }
   const meta = SIGN_META[classIdx] ?? { color: '#888', abbr: '?' };
   return (
     <View style={[styles.signIcon, { width: size, height: size, borderRadius: size / 2, backgroundColor: meta.color }]}>

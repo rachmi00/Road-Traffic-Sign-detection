@@ -1,14 +1,20 @@
+import { useMemo } from 'react';
 import { useFrameProcessor } from 'react-native-vision-camera';
 import { useResizePlugin } from 'vision-camera-resize-plugin';
 import { Worklets } from 'react-native-worklets-core';
 import { useSharedValue } from 'react-native-reanimated';
 import type { ModelMeta } from './useModelSetup';
 
-const CONFIDENCE_THRESHOLD = 0.5; // lowered: moving-car angles/blur reduce raw confidence
+const CONFIDENCE_THRESHOLD = 0.5;
 const MIN_BOX_SIZE = 0.05;
 const IOU_THRESHOLD = 0.5;
 const MAX_DETECTIONS = 5;
-const FRAME_SKIP = 3; // run inference on every 3rd frame — kills the backlog
+const FRAME_SKIP = 3;
+
+// Module-level so Worklets.createRunOnJS gets a stable reference (no re-wrapping each render)
+function _log(msg: string) {
+  console.log('[TFLite]', msg);
+}
 
 export function useFrameInference(
   boxedModel: ReturnType<typeof import('react-native-nitro-modules').NitroModules.box> | undefined,
@@ -17,13 +23,14 @@ export function useFrameInference(
 ) {
   const { resize } = useResizePlugin();
   const updateResult = Worklets.createRunOnJS(setResult);
+  // Stable worklet→JS logger; useMemo with [] so it is created only once
+  const logInference = useMemo(() => Worklets.createRunOnJS(_log), []);
   const frameCount = useSharedValue(0);
+  const hasLogged = useSharedValue(false);
 
   const frameProcessor = useFrameProcessor(
     (frame) => {
       'worklet';
-      // Skip frames: only run inference every FRAME_SKIP frames.
-      // This prevents the inference queue from backing up at 30fps.
       frameCount.value = (frameCount.value + 1) % FRAME_SKIP;
       if (frameCount.value !== 0) return;
 
@@ -42,6 +49,18 @@ export function useFrameInference(
         const outputs = m.runSync([resized.buffer as ArrayBuffer]);
         const output = new Float32Array(outputs[0]);
         const numCols = 4 + numClasses;
+
+        // Log output layout on first inference so we can verify [1,15,8400] vs [1,8400,15]
+        if (!hasLogged.value) {
+          hasLogged.value = true;
+          let logStr = 'len=' + output.length + ' frame=' + frame.width + 'x' + frame.height + ' first30=[';
+          for (let li = 0; li < Math.min(30, output.length); li++) {
+            logStr += output[li].toFixed(3);
+            if (li < 29) logStr += ',';
+          }
+          logStr += ']';
+          logInference(logStr);
+        }
 
         const candidates: {
           cls: number;
@@ -81,7 +100,7 @@ export function useFrameInference(
         }
 
         if (candidates.length === 0) {
-          updateResult(`NONE|${maxScore.toFixed(4)}`);
+          updateResult('NONE|' + maxScore.toFixed(4));
           return;
         }
 
@@ -112,6 +131,7 @@ export function useFrameInference(
           }
         }
 
+        // Determine coordinate scale: model may output in [0,1] or [0,640] space
         let coordMax = 0;
         for (const d of kept) {
           if (d.cx > coordMax) coordMax = d.cx;
@@ -121,23 +141,48 @@ export function useFrameInference(
         }
         const scale = coordMax > 2 ? 640 : 1;
 
+        // Letterbox padding introduced when the camera frame was scaled to 640×640.
+        // The resize plugin fits the frame inside 640×640 maintaining aspect ratio,
+        // padding the shorter axis with zeros. We must reverse this to get coordinates
+        // relative to the actual camera frame (which the camera preview also shows).
+        const fscale = Math.min(640 / frame.width, 640 / frame.height);
+        const padX = (640 - frame.width * fscale) / 2 / 640;
+        const padY = (640 - frame.height * fscale) / 2 / 640;
+        // Guard against zero division if the frame happens to be exactly square
+        const scaleX = padX < 0.499 ? 1 - 2 * padX : 1;
+        const scaleY = padY < 0.499 ? 1 - 2 * padY : 1;
+
         const encoded = kept
           .map((d) => {
-            const nx = (d.cx - d.bw / 2) / scale;
-            const ny = (d.cy - d.bh / 2) / scale;
-            const nw = d.bw / scale;
-            const nh = d.bh / scale;
-            return `${d.cls},${d.conf.toFixed(3)},${nx.toFixed(4)},${ny.toFixed(4)},${nw.toFixed(4)},${nh.toFixed(4)}`;
+            // Step 1: normalize to [0,1] within the 640×640 letterboxed input
+            const ncx = d.cx / scale;
+            const ncy = d.cy / scale;
+            const nw640 = d.bw / scale;
+            const nh640 = d.bh / scale;
+
+            // Step 2: remove letterbox padding → coordinates in original frame space [0,1]
+            const upCx = (ncx - padX) / scaleX;
+            const upCy = (ncy - padY) / scaleY;
+            const upW  = nw640 / scaleX;
+            const upH  = nh640 / scaleY;
+
+            // Step 3: center → top-left, clamped to valid range
+            const nx = Math.max(0, upCx - upW / 2);
+            const ny = Math.max(0, upCy - upH / 2);
+            const nw = Math.min(1 - nx, upW);
+            const nh = Math.min(1 - ny, upH);
+
+            return d.cls + ',' + d.conf.toFixed(3) + ',' + nx.toFixed(4) + ',' + ny.toFixed(4) + ',' + nw.toFixed(4) + ',' + nh.toFixed(4);
           })
           .join(';');
 
         updateResult(encoded);
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
-        updateResult(`ERR|${msg}`);
+        updateResult('ERR|' + msg);
       }
     },
-    [boxedModel, resize, modelMeta, updateResult, frameCount],
+    [boxedModel, resize, modelMeta, updateResult, logInference, frameCount, hasLogged],
   );
 
   return frameProcessor;

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
   clearHistory,
@@ -8,6 +8,20 @@ import {
   type HistoryEntry,
 } from '@/store/detectionHistory';
 import signsData from '../../assets/signs.json';
+
+const SIGN_IMAGES = [
+  require('../../assets/signs/sign_1.png'),
+  require('../../assets/signs/sign_1.png'),
+  require('../../assets/signs/sign_2.png'),
+  require('../../assets/signs/sign_3.png'),
+  require('../../assets/signs/sign_4.png'),
+  require('../../assets/signs/sign_5.png'),
+  require('../../assets/signs/sign_6.png'),
+  require('../../assets/signs/sign_7.png'),
+  require('../../assets/signs/sign_8.png'),
+  require('../../assets/signs/sign_9.png'),
+  require('../../assets/signs/sign_10.png'),
+];
 
 const CLASS_NAMES = [
   'Speed Limit 30', 'Speed Limit 50', 'Priority Road', 'Give Way', 'Stop',
@@ -38,11 +52,16 @@ function HistoryItem({ entry, now }: { entry: HistoryEntry; now: number }) {
   const pct = Math.round(entry.confidence * 100);
   const elapsed = now - entry.timestamp;
 
+  const img = SIGN_IMAGES[entry.classIdx];
   return (
     <View style={styles.item}>
-      <View style={[styles.iconCircle, { backgroundColor: color }]}>
-        <Text style={styles.iconAbbr}>{abbr}</Text>
-      </View>
+      {img != null ? (
+        <Image source={img} style={styles.iconImage} resizeMode="contain" />
+      ) : (
+        <View style={[styles.iconCircle, { backgroundColor: color }]}>
+          <Text style={styles.iconAbbr}>{abbr}</Text>
+        </View>
+      )}
       <View style={styles.itemBody}>
         <Text style={styles.itemName}>{name}</Text>
         {sign && (
@@ -174,6 +193,11 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 20,
     gap: 14,
+  },
+  iconImage: {
+    width: 42,
+    height: 42,
+    flexShrink: 0,
   },
   iconCircle: {
     width: 42,

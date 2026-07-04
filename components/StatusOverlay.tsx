@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
 import type { Detection } from './DetectionOverlay';
 
 const CLASS_NAMES = [
@@ -24,8 +24,58 @@ interface Props {
 }
 
 export function StatusOverlay({ modelState, detections, debugInfo, lang, onToggleLang }: Props) {
+  const { width, height } = useWindowDimensions();
+  const isLandscape = width > height;
   const top = detections[0];
 
+  if (isLandscape) {
+    // ── Landscape layout ────────────────────────────────────────────────
+    // Compact horizontal panel at bottom-left so the road view is clear.
+    return (
+      <>
+        {/* Model status — top-left */}
+        <View style={styles.topOverlayLandscape}>
+          <Text style={styles.overlayTextSmall}>
+            {modelState === 'loaded' ? '✓ Ready' : modelState === 'error' ? '⚠ Error' : '⏳ Loading'}
+          </Text>
+        </View>
+
+        {/* Language toggle — top-right */}
+        <TouchableOpacity style={styles.langToggleLandscape} onPress={onToggleLang}>
+          <Text style={styles.langTextSmall}>{lang === 'en' ? '🇬🇧' : '🇫🇷'}</Text>
+        </TouchableOpacity>
+
+        {/* Detection panel — bottom-left, horizontal */}
+        <View style={[styles.detectionPanelLandscape, top != null && styles.detectionPanelActive]}>
+          {top != null ? (
+            <View style={styles.landscapeRow}>
+              <View style={styles.detectionBadgeSmall}>
+                <Text style={styles.detectionBadgeText}>✓</Text>
+              </View>
+              <View style={styles.landscapeInfo}>
+                <Text style={styles.landscapeLabel} numberOfLines={1}>
+                  {CLASS_NAMES[top.classIdx] ?? `Class ${top.classIdx}`}
+                </Text>
+                <View style={styles.landscapeConfRow}>
+                  <View style={styles.confidenceBarSmall}>
+                    <View style={[styles.confidenceFill, { width: `${Math.round(top.confidence * 100)}%` as `${number}%` }]} />
+                  </View>
+                  <Text style={styles.confidenceTextSmall}>{Math.round(top.confidence * 100)}%</Text>
+                </View>
+              </View>
+            </View>
+          ) : (
+            <Text style={styles.noSignSmall}>
+              {lang === 'en' ? 'No sign detected' : 'Aucun panneau'}
+            </Text>
+          )}
+          {debugInfo ? <Text style={styles.debugText}>{debugInfo}</Text> : null}
+        </View>
+      </>
+    );
+  }
+
+  // ── Portrait layout (original) ─────────────────────────────────────────
   return (
     <>
       <TouchableOpacity style={styles.langToggle} onPress={onToggleLang}>
@@ -72,9 +122,10 @@ export function StatusOverlay({ modelState, detections, debugInfo, lang, onToggl
 }
 
 const styles = StyleSheet.create({
+  // ── Portrait ────────────────────────────────────────────────────────────
   langToggle: {
     position: 'absolute',
-    top: 60,
+    top: 16,
     right: 20,
     backgroundColor: 'rgba(0,0,0,0.65)',
     paddingHorizontal: 14,
@@ -88,7 +139,7 @@ const styles = StyleSheet.create({
   },
   topOverlay: {
     position: 'absolute',
-    top: 60,
+    top: 16,
     alignSelf: 'center',
     backgroundColor: 'rgba(0,0,0,0.55)',
     paddingHorizontal: 16,
@@ -102,7 +153,7 @@ const styles = StyleSheet.create({
   },
   bottomOverlay: {
     position: 'absolute',
-    bottom: 110,
+    bottom: 72,
     alignSelf: 'center',
     backgroundColor: 'rgba(15,15,20,0.78)',
     paddingHorizontal: 28,
@@ -167,5 +218,94 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.3)',
     fontSize: 10,
     marginTop: 6,
+  },
+
+  // ── Landscape ────────────────────────────────────────────────────────────
+  topOverlayLandscape: {
+    position: 'absolute',
+    top: 12,
+    left: 16,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+  },
+  overlayTextSmall: {
+    color: 'white',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  langToggleLandscape: {
+    position: 'absolute',
+    top: 12,
+    right: 16,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+  },
+  langTextSmall: {
+    fontSize: 16,
+  },
+  detectionPanelLandscape: {
+    position: 'absolute',
+    bottom: 72,
+    left: 16,
+    backgroundColor: 'rgba(15,15,20,0.82)',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    maxWidth: 260,
+  },
+  detectionPanelActive: {
+    borderColor: 'rgba(0,255,136,0.35)',
+  },
+  landscapeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  detectionBadgeSmall: {
+    backgroundColor: '#00FF88',
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  landscapeInfo: {
+    flex: 1,
+    gap: 4,
+  },
+  landscapeLabel: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  landscapeConfRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  confidenceBarSmall: {
+    flex: 1,
+    height: 5,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  confidenceTextSmall: {
+    color: '#00FF88',
+    fontSize: 12,
+    fontWeight: '700',
+    width: 32,
+    textAlign: 'right',
+  },
+  noSignSmall: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 12,
   },
 });
