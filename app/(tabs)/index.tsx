@@ -59,7 +59,7 @@ export default function ScannerScreen() {
   }, []);
 
   const { modelMeta, boxedModel } = useModelSetup(tfliteModel);
-  const frameProcessor = useFrameInference(boxedModel, modelMeta, setResultStr);
+  const frameProcessor = useFrameInference(boxedModel, modelMeta, setResultStr, screenW, screenH);
 
   const { detections, debugInfo } = useMemo(() => {
     if (!resultStr) return { detections: [] as Detection[], debugInfo: '' };

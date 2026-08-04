@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Alert, FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import {
   clearHistory,
@@ -7,6 +8,8 @@ import {
   subscribeToHistory,
   type HistoryEntry,
 } from '@/store/detectionHistory';
+import { setRole } from '@/lib/auth';
+import { InstructorPinModal } from '@/components/InstructorPinModal';
 import signsData from '../../assets/signs.json';
 
 const SIGN_IMAGES = [
@@ -93,8 +96,10 @@ function EmptyState() {
 }
 
 export default function HistoryScreen() {
+  const router = useRouter();
   const [history, setHistory] = useState(getHistory());
   const [now, setNow] = useState(Date.now());
+  const [pinModalVisible, setPinModalVisible] = useState(false);
 
   useEffect(() => subscribeToHistory(() => setHistory(getHistory())), []);
 
@@ -102,6 +107,19 @@ export default function HistoryScreen() {
     const timer = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(timer);
   }, []);
+
+  const openPinModal = useCallback(() => setPinModalVisible(true), []);
+  const closePinModal = useCallback(() => setPinModalVisible(false), []);
+
+  const handleVerified = useCallback(async () => {
+    try {
+      await setRole('instructor');
+      setPinModalVisible(false);
+      router.replace('/(instructor)');
+    } catch (e) {
+      Alert.alert('Something went wrong', e instanceof Error ? e.message : String(e));
+    }
+  }, [router]);
 
   return (
     <View style={styles.container}>
@@ -125,26 +143,35 @@ export default function HistoryScreen() {
         )}
       </View>
 
-      {history.length === 0 ? (
-        <EmptyState />
-      ) : (
-        <FlatList
-          data={history}
-          keyExtractor={(e) => String(e.id)}
-          renderItem={({ item }) => <HistoryItem entry={item} now={now} />}
-          ItemSeparatorComponent={() => <View style={styles.divider} />}
-          showsVerticalScrollIndicator={false}
-          ListHeaderComponent={
-            <View style={styles.instructorNote}>
-              <Ionicons name="person-circle-outline" size={14} color="#8E8E93" />
-              <Text style={styles.instructorText}>
-                Instructor view · every sign detected this drive
-              </Text>
-            </View>
-          }
-          contentContainerStyle={styles.listContent}
-        />
-      )}
+      <View style={styles.body}>
+        {history.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <FlatList
+            data={history}
+            keyExtractor={(e) => String(e.id)}
+            renderItem={({ item }) => <HistoryItem entry={item} now={now} />}
+            ItemSeparatorComponent={() => <View style={styles.divider} />}
+            showsVerticalScrollIndicator={false}
+            ListHeaderComponent={
+              <View style={styles.instructorNote}>
+                <Ionicons name="person-circle-outline" size={14} color="#8E8E93" />
+                <Text style={styles.instructorText}>
+                  Instructor view · every sign detected this drive
+                </Text>
+              </View>
+            }
+            contentContainerStyle={styles.listContent}
+          />
+        )}
+      </View>
+
+      <TouchableOpacity style={styles.swapBtn} onPress={openPinModal} activeOpacity={0.6}>
+        <Ionicons name="swap-horizontal-outline" size={15} color="#8E8E93" />
+        <Text style={styles.swapBtnText}>Switch to Instructor Mode</Text>
+      </TouchableOpacity>
+
+      <InstructorPinModal visible={pinModalVisible} onClose={closePinModal} onVerified={handleVerified} />
     </View>
   );
 }
@@ -168,6 +195,19 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 15, color: '#8E8E93', marginTop: 3 },
   clearBtn: { marginLeft: 16, paddingVertical: 4 },
   clearBtnText: { fontSize: 16, color: '#FF3B30', fontWeight: '500' },
+
+  body: { flex: 1 },
+
+  swapBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    paddingVertical: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#E5E5EA',
+  },
+  swapBtnText: { fontSize: 13, color: '#8E8E93', fontWeight: '500' },
 
   instructorNote: {
     flexDirection: 'row',

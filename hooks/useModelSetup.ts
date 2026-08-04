@@ -14,6 +14,12 @@ export function useModelSetup(model: TfliteModel | null) {
   useEffect(() => {
     if (model != null) {
       try {
+        // Confirms which delegate actually ended up active — loadTensorflowModel
+        // can resolve successfully with ['nnapi'] requested even when NNAPI
+        // rejects the graph and it silently runs on CPU instead, so the request
+        // alone doesn't prove the hardware delegate is in use.
+        console.log('[TFLite] active delegates=' + JSON.stringify(model.delegates));
+
         const shape = model.outputs[0].shape;
         const dim1 = shape[1];
         const dim2 = shape[2];

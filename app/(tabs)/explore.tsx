@@ -1,5 +1,6 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
+  Alert,
   Animated,
   Image,
   ScrollView,
@@ -8,10 +9,11 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { Ionicons } from '@expo/vector-icons';
-import signsData from '../../assets/signs.json';
+import { clearRole } from '@/lib/auth';
+import { getAllSignMetadata, subscribeToSignOverrides, type SignMetadata } from '@/lib/signMetadata';
 
 // sign_0.png doesn't exist — reuse sign_1 (Speed Limit 50) as the closest match
 const SIGN_IMAGES = [
@@ -78,7 +80,7 @@ function SignRow({
   expanded,
   onToggle,
 }: {
-  sign: (typeof signsData)[number];
+  sign: SignMetadata;
   isFr: boolean;
   expanded: boolean;
   onToggle: () => void;
@@ -131,9 +133,14 @@ function SignRow({
 }
 
 export default function InfoScreen() {
+  const router = useRouter();
   const { classIndex } = useLocalSearchParams<{ classIndex?: string }>();
   const idx = classIndex != null ? parseInt(classIndex, 10) : null;
-  const detectedSign = idx != null ? signsData.find((s) => s.classIndex === idx) : null;
+
+  const [signs, setSigns] = useState<SignMetadata[]>(getAllSignMetadata());
+  useEffect(() => subscribeToSignOverrides(() => setSigns(getAllSignMetadata())), []);
+
+  const detectedSign = idx != null ? signs.find((s) => s.classIndex === idx) : null;
 
   const [lang, setLang] = useState<'en' | 'fr'>('en');
   const isFr = lang === 'fr';
@@ -143,13 +150,22 @@ export default function InfoScreen() {
     setExpandedIdx((prev) => (prev === ci ? null : ci));
   }, []);
 
+  const handleLogOut = useCallback(async () => {
+    try {
+      await clearRole();
+      router.replace('/login');
+    } catch (e) {
+      Alert.alert('Could not log out', e instanceof Error ? e.message : String(e));
+    }
+  }, [router]);
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerText}>
           <Text style={styles.title}>{isFr ? 'Panneaux routiers' : 'Traffic Signs'}</Text>
           <Text style={styles.subtitle}>
-            {isFr ? `${signsData.length} panneaux supportés` : `${signsData.length} signs supported`}
+            {isFr ? `${signs.length} panneaux supportés` : `${signs.length} signs supported`}
           </Text>
         </View>
         <TouchableOpacity
@@ -201,14 +217,14 @@ export default function InfoScreen() {
 
         {/* Sign list — flat, no cards */}
         {CATEGORIES.map((cat) => {
-          const signs = signsData.filter((s) => (SIGN_META[s.classIndex]?.category ?? '') === cat);
-          if (signs.length === 0) return null;
+          const categorySigns = signs.filter((s) => (SIGN_META[s.classIndex]?.category ?? '') === cat);
+          if (categorySigns.length === 0) return null;
           return (
             <View key={cat} style={styles.section}>
               <Text style={styles.sectionTitle}>
                 {isFr ? (CATEGORY_FR[cat] ?? cat) : cat}
               </Text>
-              {signs.map((sign, si) => (
+              {categorySigns.map((sign, si) => (
                 <View key={sign.classIndex}>
                   {si > 0 && <View style={styles.divider} />}
                   <SignRow
@@ -228,6 +244,11 @@ export default function InfoScreen() {
             ? "Utilisez l'onglet Scanner pour reconnaître des panneaux en temps réel."
             : 'Use the Scanner tab to recognise signs in real time.'}
         </Text>
+
+        <TouchableOpacity style={styles.logOutBtn} onPress={handleLogOut} activeOpacity={0.6}>
+          <Ionicons name="log-out-outline" size={15} color="#C7C7CC" />
+          <Text style={styles.logOutText}>Log out</Text>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -345,4 +366,13 @@ const styles = StyleSheet.create({
     paddingTop: 32,
     paddingBottom: 8,
   },
+
+  logOutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingVertical: 14,
+  },
+  logOutText: { fontSize: 13, color: '#C7C7CC', fontWeight: '500' },
 });

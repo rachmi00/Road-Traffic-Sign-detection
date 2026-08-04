@@ -1,3 +1,6 @@
+import { getSignMetadata } from '@/lib/signMetadata';
+import { appendTripLogEntry, clearTripLogEntries } from '@/lib/tripLog';
+
 export interface HistoryEntry {
   id: number;
   classIdx: number;
@@ -18,6 +21,10 @@ export function logDetection(classIdx: number, confidence: number): void {
     ..._entries,
   ].slice(0, 100);
   _listeners.forEach((l) => l());
+
+  // Mirrors detections into the persistent trip log read by Instructor Mode.
+  const name = getSignMetadata(classIdx)?.name ?? `Class ${classIdx}`;
+  appendTripLogEntry({ classIdx, name, timestamp: now, confidence }).catch(() => {});
 }
 
 export function getHistory(): HistoryEntry[] {
@@ -27,6 +34,7 @@ export function getHistory(): HistoryEntry[] {
 export function clearHistory(): void {
   _entries = [];
   _listeners.forEach((l) => l());
+  clearTripLogEntries().catch(() => {});
 }
 
 export function subscribeToHistory(listener: () => void): () => void {
