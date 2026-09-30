@@ -2,7 +2,7 @@
 
 A fully offline, on-device traffic sign recognition app built with [Expo](https://expo.dev) and React Native. It uses a YOLO-based TFLite model running through camera frame processors to detect and classify traffic signs in real time, announces them by voice, and keeps a log of what was seen during a drive.
 
-No network calls, no cloud services, no analytics — everything runs and stays on the device.
+Everything runs and stays on the device.
 
 ## Features
 
@@ -89,6 +89,8 @@ assets/
 ## Supported signs
 
 Speed Limit 30, Speed Limit 50, Priority Road, Give Way, Stop, No Entry, Road Work, Traffic Lights Ahead, Pedestrian Crossing, Roundabout, No Parking.
+
+## Photos
 
 ## Learn more
 
