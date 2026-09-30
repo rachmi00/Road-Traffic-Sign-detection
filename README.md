@@ -92,6 +92,15 @@ Speed Limit 30, Speed Limit 50, Priority Road, Give Way, Stop, No Entry, Road Wo
 
 ## Photos
 
+
+<img width="503" height="1080" alt="Give way sign" src="https://github.com/user-attachments/assets/fffadde0-e816-4e12-8a9b-600f5a75f931" />
+<img width="540" height="1158" alt="Supported Signs in English" src="https://github.com/user-attachments/assets/04c10d2d-b746-46c7-9a01-171cee49b93e" />
+
+
+https://github.com/user-attachments/assets/4de474a7-3fe2-4063-901d-c79ed6e62639
+
+
+
 ## Learn more
 
 - [Expo documentation](https://docs.expo.dev/)
